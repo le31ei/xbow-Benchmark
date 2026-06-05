@@ -9,6 +9,9 @@ COPY ports.map /etc/nginx/ports.map
 # 复制 HTML 文件
 COPY index.html /usr/share/nginx/html/index.html
 
+# 构建期校验 nginx 配置语法，配置有错时直接构建失败（避免起容器后崩溃重启）
+RUN nginx -t
+
 # 暴露端口
 EXPOSE 80
 
