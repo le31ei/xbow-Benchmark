@@ -89,11 +89,10 @@ docker network create benchmark-net 2>/dev/null
 ./start-gateway.sh start --pull --start 1 --end 104
 ```
 
-`--pull` 模式下**所有镜像都来自 GHCR**，本地一个都不从 Docker Hub 拉：
-- build 出来的服务 → `ghcr.io/<owner>/xben-NNN-24-<service>`，打回本地名 `xben-NNN-24-<service>`；
-- 用现成 `image:` 的服务（mysql/mongo/wordpress…）→ CI 已镜像到
-  `ghcr.io/<owner>/mirror-<name>:<tag>`，拉回打成原名（如 `mysql:5.7`）；
-- 网关 → `ghcr.io/<owner>/benchmark-gateway`（CI 已带生成好的 ports.map）。
+`--pull` 模式下的镜像来源：
+- build 出来的服务 → 从 `ghcr.io/<owner>/xben-NNN-24-<service>` 拉取，打回本地名 `xben-NNN-24-<service>`；
+- 网关 → 从 `ghcr.io/<owner>/benchmark-gateway` 拉取（CI 已带生成好的 ports.map）；
+- 用现成 `image:` 的服务（mysql/mongo/wordpress…）→ **由 `docker compose up` 直接从 Docker Hub 拉取**，不经 GHCR 中转。
 
 最后 `up --no-build`，绝不本地构建。owner 非 le31ei 时用 `--owner <你的用户名>` 或环境变量
 `GHCR_OWNER` 指定。

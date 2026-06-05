@@ -79,25 +79,8 @@ jobs:
             exit 1
           fi
           echo "已推送 $pushed 个镜像"
-
-      - name: Mirror upstream image services to GHCR
-        run: |
-          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          cd "benchmarks/${{ matrix.bench }}"
-          # 用现成 image: 的服务（mysql/mongo/wordpress…），镜像一份到 ghcr.io/owner/mirror-<name>:<tag>
-          refs=$(docker compose -f docker-compose.yml config --format json 2>/dev/null \
-            | jq -r '.services[]|select(.build==null and .image!=null)|.image' | sort -u)
-          for ref in $refs; do
-            [ -n "$ref" ] || continue
-            name="${ref%:*}"; tag="${ref##*:}"
-            [ "$name" = "$ref" ] && { name="$ref"; tag="latest"; }
-            safe=$(echo "$name" | tr '/' '-')
-            dst="ghcr.io/${owner}/mirror-${safe}:${tag}"
-            echo "mirror $ref -> $dst"
-            docker pull "$ref"
-            docker tag "$ref" "$dst"
-            docker push "$dst"
-          done
+          # 注：用现成 image: 的服务（mysql/mongo/wordpress…）不推 GHCR，
+          # 本地由 docker compose up 直接从 Docker Hub 拉取。
 
   # 3) 构建并推送网关镜像（含自动生成的 ports.map）
   gateway:

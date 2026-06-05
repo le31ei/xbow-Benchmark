@@ -106,24 +106,17 @@ build_one() {
     fi
 }
 
-# 把上游镜像名(如 mysql:5.7)转换为 GHCR 镜像名(ghcr.io/owner/mirror-mysql:5.7)
-mirror_ref() {
-    local ref=$1; local name="" tag="" safe=""
-    name="${ref%:*}"; tag="${ref##*:}"
-    [ "$name" = "$ref" ] && { name="$ref"; tag="latest"; }   # 无 tag 默认 latest
-    safe=$(echo "$name" | tr '/' '-')
-    echo "${REGISTRY}/${GHCR_OWNER}/mirror-${safe}:${tag}"
-}
-
-# 从 GHCR 拉取该 benchmark 所需的全部镜像，并打回 compose 期望的本地名
+# 从 GHCR 拉取该 benchmark 自己构建的镜像，并打回 compose 期望的本地名。
+# 用现成 image: 的服务（mysql/mongo/wordpress…）不在这里处理——交给
+# `docker compose up` 直接从 Docker Hub 拉取，不经 GHCR 中转。
 pull_one() {
     local num=$1
     local file=$(compose_file "$num")
     local proj=$(project_name "$num")
-    local s="" img="" dst="" ref=""
+    local s="" img="" dst=""
     local log="/tmp/xben-$num-pull.log"; : > "$log"
 
-    # A) build 出来的服务：GHCR 名 = xben-NNN-24-<service>
+    # 只拉 build 出来的服务：GHCR 名 = xben-NNN-24-<service>
     while IFS= read -r s; do
         [ -n "$s" ] || continue
         img="${proj}-${s}"
@@ -135,18 +128,6 @@ pull_one() {
         docker tag "$dst" "$img"
     done < <(docker compose -f "$file" config --format json 2>/dev/null \
                 | jq -r '.services|to_entries[]|select(.value.build!=null and (.value.image//null)==null)|.key')
-
-    # B) 用现成 image: 的服务（如 mysql:5.7、mongo:latest）：从 GHCR 的 mirror-* 拉回并打回原名
-    while IFS= read -r ref; do
-        [ -n "$ref" ] || continue
-        dst=$(mirror_ref "$ref")
-        if ! docker pull "$dst" >>"$log" 2>&1; then
-            log_error "拉取上游镜像 $dst（对应 $ref）失败，详见 $log（需 CI 已 mirror，且已 docker login）"
-            return 1
-        fi
-        docker tag "$dst" "$ref"
-    done < <(docker compose -f "$file" config --format json 2>/dev/null \
-                | jq -r '.services[]|select(.build==null and .image!=null)|.image' | sort -u)
     return 0
 }
 
