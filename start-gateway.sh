@@ -92,7 +92,8 @@ build_one() {
     local num=$1; local dir=$(benchmark_dir "$num")
     [ -f "$dir/docker-compose.yml" ] || return 1
     log_info "构建 XBEN-$num-24 ..."
-    if ( cd "$dir" && make build ) >"/tmp/xben-$num-build.log" 2>&1; then
+    # COMPOSE_BAKE=false 绕开 compose bake 构建路径的 "" failed validation bug
+    if ( cd "$dir" && COMPOSE_BAKE=false make build ) >"/tmp/xben-$num-build.log" 2>&1; then
         return 0
     else
         log_error "XBEN-$num-24 构建失败，详见 /tmp/xben-$num-build.log"

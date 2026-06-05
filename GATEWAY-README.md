@@ -102,6 +102,10 @@ gateway/
 
 ## 排错
 
+**构建报 `failed to load cache key: "" failed validation`**：这是 Docker Compose 的
+bake 构建路径的已知 bug。脚本已默认用 `COMPOSE_BAKE=false` 绕开；若手动构建也请带上：
+`COMPOSE_BAKE=false make build`。
+
 ```bash
 docker logs benchmark-gateway          # 网关日志
 docker logs xben-001-24-<service>-1    # 某 benchmark 容器日志
