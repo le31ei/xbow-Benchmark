@@ -181,7 +181,7 @@ cmd_build() {
     local ok=0 fail=0
     for ((i=START_INDEX; i<=END_INDEX; i++)); do
         local num=$(printf "%03d" "$i")
-        if build_one "$num"; then ((ok++)); else ((fail++)); fi
+        if build_one "$num"; then ok=$((ok+1)); else fail=$((fail+1)); fi
     done
     log_info "构建完成：成功 $ok，失败 $fail"
 }
@@ -192,7 +192,7 @@ cmd_start() {
     local ok=0 fail=0
     for ((i=START_INDEX; i<=END_INDEX; i++)); do
         local num=$(printf "%03d" "$i")
-        if start_one "$num"; then ((ok++)); else ((fail++)); fi
+        if start_one "$num"; then ok=$((ok+1)); else fail=$((fail+1)); fi
     done
     start_gateway
     log_info "启动完成：成功 $ok，失败/跳过 $fail"
