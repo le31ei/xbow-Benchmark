@@ -23,6 +23,11 @@ GATEWAY_PORT="8080"
 START_INDEX=1
 END_INDEX=104
 
+# 镜像来源：默认本地 make build；--pull 时改为从 GHCR 拉取预构建镜像
+PULL_MODE=0
+REGISTRY="ghcr.io"
+GHCR_OWNER="${GHCR_OWNER:-le31ei}"   # 可用环境变量 GHCR_OWNER 覆盖
+
 # ---------- 日志 ----------
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
@@ -101,6 +106,25 @@ build_one() {
     fi
 }
 
+# 从 GHCR 拉取该 benchmark 的镜像，并打回 compose 期望的本地名（<proj>-<service>）
+pull_one() {
+    local num=$1
+    local file=$(compose_file "$num")
+    local proj=$(project_name "$num")
+    local s="" img="" dst=""
+    while IFS= read -r s; do
+        [ -n "$s" ] || continue
+        img="${proj}-${s}"
+        dst="$REGISTRY/$GHCR_OWNER/${img}:latest"
+        if ! docker pull "$dst" >"/tmp/xben-$num-pull.log" 2>&1; then
+            log_error "拉取 $dst 失败，详见 /tmp/xben-$num-pull.log（私有包需先 docker login ghcr.io）"
+            return 1
+        fi
+        docker tag "$dst" "$img"
+    done < <(docker compose -f "$file" config --services 2>/dev/null)
+    return 0
+}
+
 # 启动单个 benchmark
 start_one() {
     local num=$1
@@ -113,11 +137,18 @@ start_one() {
         return 1
     fi
 
-    build_one "$num" || return 1
+    local up_extra=""
+    if [ "$PULL_MODE" -eq 1 ]; then
+        log_info "拉取 XBEN-$num-24 镜像（$REGISTRY/$GHCR_OWNER）..."
+        pull_one "$num" || return 1
+        up_extra="--no-build"   # 只用拉到的镜像，绝不本地构建
+    else
+        build_one "$num" || return 1
+    fi
     write_override "$num" "$file" "$main"
 
     log_info "启动 XBEN-$num-24（主服务: $main, 别名: xben-$num）"
-    if docker compose -p "$(project_name "$num")" -f "$file" -f "$(override_file "$num")" up -d \
+    if docker compose -p "$(project_name "$num")" -f "$file" -f "$(override_file "$num")" up -d $up_extra \
             >"/tmp/xben-$num-up.log" 2>&1; then
         log_success "XBEN-$num-24 已启动 -> http://localhost:$GATEWAY_PORT/xben-$num/"
         return 0
@@ -240,19 +271,21 @@ show_help() {
   full       等同 start
 
 选项:
-  --start N  起始编号（默认 1）
-  --end M    结束编号（默认 104）
+  --start N    起始编号（默认 1）
+  --end M      结束编号（默认 104）
+  --pull       从 GHCR 拉取预构建镜像，而不是本地 make build（配合 GitHub Actions）
+  --owner X    GHCR 所有者（默认 le31ei，也可用环境变量 GHCR_OWNER）
 
 示例:
-  $0 start --start 1 --end 5     # 只启动 1-5 号
-  $0 start --start 1 --end 1     # 只启动 1 号（推荐先这样验证）
+  $0 start --start 1 --end 5            # 本地构建并启动 1-5 号
+  $0 start --pull --start 1 --end 104   # 拉取 GHCR 预构建镜像启动全部（不本地构建）
   $0 status
   $0 down
 
 提示:
-  同时启动很多 benchmark 会创建很多 Docker 网络，可能耗尽默认地址池。
-  若遇到 "could not find an available address" 类错误，请分批启动，
-  或在 Docker 守护进程配置更大的 default-address-pools。
+  - 私有 GHCR 包需先登录： echo \$PAT | docker login ghcr.io -u <用户名> --password-stdin
+  - 同时启动很多 benchmark 会创建很多 Docker 网络，可能耗尽默认地址池；
+    可在 /etc/docker/daemon.json 配置更大的 default-address-pools 后重启 docker。
 EOF
 }
 
@@ -262,6 +295,8 @@ main() {
         case "$1" in
             --start) START_INDEX="$2"; shift 2;;
             --end)   END_INDEX="$2";   shift 2;;
+            --pull)  PULL_MODE=1; shift;;
+            --owner) GHCR_OWNER="$2"; shift 2;;
             *) log_error "未知参数: $1"; show_help; exit 1;;
         esac
     done

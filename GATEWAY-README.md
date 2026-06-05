@@ -62,6 +62,37 @@
 
 默认范围是 1–104。
 
+## 用 GitHub Actions 预构建镜像，本地只 pull（推荐）
+
+不想在本地慢慢 `make build`（还要处理 EOL 源等问题）时，可让 CI 在云端构建好所有镜像并推到
+GHCR，本地只拉取。
+
+### 1) 在 GitHub 上触发构建
+
+工作流文件：`.github/workflows/build-images.yml`。
+
+- 进入仓库 **Actions** → **Build and push benchmark images** → **Run workflow**（可在
+  `filter` 里填 `XBEN-001-24` 或 `XBEN-00*-24` 只构建部分；留空=全部）。
+- 它会矩阵并行地对每个 benchmark 跑 `make build`，并把产出的镜像推到
+  `ghcr.io/<owner>/xben-NNN-24-<service>:latest`。
+
+镜像默认是**私有**包。要么把对应 package 在 GitHub 上设为 Public，要么本地拉取前先登录：
+
+```bash
+echo <你的_PAT_含read:packages> | docker login ghcr.io -u le31ei --password-stdin
+```
+
+### 2) 本地用 --pull 启动（不再本地构建）
+
+```bash
+docker network create benchmark-net 2>/dev/null
+./start-gateway.sh start --pull --start 1 --end 104
+```
+
+`--pull` 模式下脚本会从 GHCR 拉取每个服务的镜像并打回 compose 期望的本地名，再
+`up --no-build`（绝不本地构建）。owner 非 le31ei 时用 `--owner <你的用户名>` 或环境变量
+`GHCR_OWNER` 指定。
+
 ## 依赖
 
 `docker`、`docker compose` 插件、`jq`、`openssl`（`make build` 需要）。

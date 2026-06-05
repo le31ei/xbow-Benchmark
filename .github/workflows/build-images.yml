@@ -1,0 +1,81 @@
+name: Build and push benchmark images
+
+# 在云端把每个 benchmark 构建好并推到 GHCR（ghcr.io/<owner>/xben-NNN-24-<service>）
+# 本地就只需 pull，不再 build。
+
+on:
+  # 仅手动触发，避免每次改 benchmark 都跑上百个 job
+  workflow_dispatch:
+    inputs:
+      filter:
+        description: '只构建匹配的 benchmark（glob，如 XBEN-001-24 或 XBEN-00*-24；留空=全部）'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # 1) 生成待构建的 benchmark 列表（矩阵）
+  list:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set
+        run: |
+          filter='${{ github.event.inputs.filter }}'
+          [ -z "$filter" ] && filter='XBEN-*-24'
+          arr=$(ls -d benchmarks/$filter 2>/dev/null | xargs -n1 basename | jq -R . | jq -cs .)
+          echo "matrix=$arr" >> "$GITHUB_OUTPUT"
+          echo "将构建: $arr"
+
+  # 2) 每个 benchmark 一个 job，构建并推送其镜像
+  build:
+    needs: list
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        bench: ${{ fromJson(needs.list.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build images (make build, 带正确 FLAG)
+        env:
+          COMPOSE_BAKE: "false"   # 规避 compose bake 的 cache-key bug
+        run: |
+          cd "benchmarks/${{ matrix.bench }}"
+          make build
+
+      - name: Tag & push to GHCR
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          proj=$(echo "${{ matrix.bench }}" | tr '[:upper:]' '[:lower:]')   # 如 xben-001-24
+          pushed=0
+          # make build 产生的镜像名形如 <proj>-<service>
+          for repo in $(docker images --format '{{.Repository}}' | grep -E "^${proj}-" | sort -u); do
+            src="${repo}:latest"
+            dst="ghcr.io/${owner}/${repo}:latest"
+            echo "push $src -> $dst"
+            docker tag "$src" "$dst"
+            docker push "$dst"
+            pushed=$((pushed+1))
+          done
+          if [ "$pushed" -eq 0 ]; then
+            echo "::error::未找到 ${proj}-* 镜像，构建可能未产出镜像"
+            exit 1
+          fi
+          echo "已推送 $pushed 个镜像"
