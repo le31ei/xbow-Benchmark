@@ -1,0 +1,25 @@
+# --- 网关运行时生成物 ---
+.gateway/                 # 每个 benchmark 的网络 override（start-gateway.sh 运行时生成）
+
+# --- benchmark 构建产物 ---
+**/.xben_build_done       # make 构建守卫文件
+
+# --- 日志 ---
+*.log
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# --- Node ---
+node_modules/
+
+# --- 系统/编辑器 ---
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+
+# 注意：benchmarks/*/.env 含答案 flag，按你的要求保留提交，故此处不忽略 .env

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validation Benchmarks Gateway</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            color: white;
+            padding: 40px 20px;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        .search-box {
+            text-align: center;
+            margin: 30px 0;
+        }
+        #searchInput {
+            width: 100%;
+            max-width: 600px;
+            padding: 15px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 50px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            outline: none;
+        }
+        .stats {
+            text-align: center;
+            color: white;
+            margin: 20px 0;
+            font-size: 1.1em;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            padding: 20px 0;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: #333;
+            display: block;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            margin-right: 15px;
+            font-size: 18px;
+        }
+        .card-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        .card-path {
+            color: #718096;
+            font-size: 0.9em;
+            font-family: 'Monaco', 'Courier New', monospace;
+            background: #f7fafc;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+        .no-results {
+            text-align: center;
+            color: white;
+            font-size: 1.3em;
+            padding: 60px 20px;
+            display: none;
+        }
+        footer {
+            text-align: center;
+            color: white;
+            padding: 40px 20px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Validation Benchmarks Gateway</h1>
+            <p class="subtitle">访问和测试所有 Benchmark 环境</p>
+        </header>
+
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="搜索 benchmark... (例如: XBEN-001)" />
+        </div>
+
+        <div class="stats">
+            <span id="statsText">共 104 个 Benchmark 环境</span>
+        </div>
+
+        <div class="grid" id="benchmarkGrid"></div>
+
+        <div class="no-results" id="noResults">
+            未找到匹配的 Benchmark
+        </div>
+
+        <footer>
+            <p>Validation Benchmarks Gateway &copy; 2026</p>
+        </footer>
+    </div>
+
+    <script>
+        const benchmarks = [];
+        for (let i = 1; i <= 104; i++) {
+            const num = String(i).padStart(3, '0');
+            benchmarks.push({
+                name: `XBEN-${num}-24`,
+                path: `/xben-${num}/`,
+                number: i
+            });
+        }
+
+        function renderBenchmarks(filter = '') {
+            const grid = document.getElementById('benchmarkGrid');
+            const noResults = document.getElementById('noResults');
+            const statsText = document.getElementById('statsText');
+
+            const filtered = filter
+                ? benchmarks.filter(b => b.name.toLowerCase().includes(filter.toLowerCase()))
+                : benchmarks;
+
+            if (filtered.length === 0) {
+                grid.style.display = 'none';
+                noResults.style.display = 'block';
+                statsText.textContent = '未找到匹配结果';
+            } else {
+                grid.style.display = 'grid';
+                noResults.style.display = 'none';
+                statsText.textContent = filter
+                    ? `找到 ${filtered.length} 个 Benchmark`
+                    : `共 ${filtered.length} 个 Benchmark 环境`;
+
+                grid.innerHTML = filtered.map(benchmark => `
+                    <a href="${benchmark.path}" class="card" target="_blank">
+                        <div class="card-header">
+                            <div class="card-icon">${benchmark.number}</div>
+                            <div class="card-title">${benchmark.name}</div>
+                        </div>
+                        <div class="card-path">${benchmark.path}</div>
+                    </a>
+                `).join('');
+            }
+        }
+
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            renderBenchmarks(e.target.value);
+        });
+
+        renderBenchmarks();
+    </script>
+</body>
+</html>
