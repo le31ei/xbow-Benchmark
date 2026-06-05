@@ -143,6 +143,15 @@ start_one() {
         return 1
     fi
 
+    # 已在运行则跳过（重复 start 幂等：不重拉/重建/重启）
+    if docker ps -q \
+         --filter "label=com.docker.compose.project=$(project_name "$num")" \
+         --filter "label=com.docker.compose.service=$main" \
+         --filter "status=running" 2>/dev/null | grep -q .; then
+        log_info "XBEN-$num-24 已在运行，跳过"
+        return 0
+    fi
+
     local up_extra=""
     if [ "$PULL_MODE" -eq 1 ]; then
         log_info "拉取 XBEN-$num-24 镜像（${REGISTRY}/${GHCR_OWNER}）..."
