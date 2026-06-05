@@ -115,7 +115,7 @@ pull_one() {
     while IFS= read -r s; do
         [ -n "$s" ] || continue
         img="${proj}-${s}"
-        dst="$REGISTRY/$GHCR_OWNER/${img}:latest"
+        dst="${REGISTRY}/${GHCR_OWNER}/${img}:latest"
         if ! docker pull "$dst" >"/tmp/xben-$num-pull.log" 2>&1; then
             log_error "拉取 $dst 失败，详见 /tmp/xben-$num-pull.log（私有包需先 docker login ghcr.io）"
             return 1
@@ -139,7 +139,7 @@ start_one() {
 
     local up_extra=""
     if [ "$PULL_MODE" -eq 1 ]; then
-        log_info "拉取 XBEN-$num-24 镜像（$REGISTRY/$GHCR_OWNER）..."
+        log_info "拉取 XBEN-$num-24 镜像（${REGISTRY}/${GHCR_OWNER}）..."
         pull_one "$num" || return 1
         up_extra="--no-build"   # 只用拉到的镜像，绝不本地构建
     else
