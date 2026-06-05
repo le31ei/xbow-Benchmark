@@ -106,22 +106,47 @@ build_one() {
     fi
 }
 
-# 从 GHCR 拉取该 benchmark 的镜像，并打回 compose 期望的本地名（<proj>-<service>）
+# 把上游镜像名(如 mysql:5.7)转换为 GHCR 镜像名(ghcr.io/owner/mirror-mysql:5.7)
+mirror_ref() {
+    local ref=$1; local name="" tag="" safe=""
+    name="${ref%:*}"; tag="${ref##*:}"
+    [ "$name" = "$ref" ] && { name="$ref"; tag="latest"; }   # 无 tag 默认 latest
+    safe=$(echo "$name" | tr '/' '-')
+    echo "${REGISTRY}/${GHCR_OWNER}/mirror-${safe}:${tag}"
+}
+
+# 从 GHCR 拉取该 benchmark 所需的全部镜像，并打回 compose 期望的本地名
 pull_one() {
     local num=$1
     local file=$(compose_file "$num")
     local proj=$(project_name "$num")
-    local s="" img="" dst=""
+    local s="" img="" dst="" ref=""
+    local log="/tmp/xben-$num-pull.log"; : > "$log"
+
+    # A) build 出来的服务：GHCR 名 = xben-NNN-24-<service>
     while IFS= read -r s; do
         [ -n "$s" ] || continue
         img="${proj}-${s}"
         dst="${REGISTRY}/${GHCR_OWNER}/${img}:latest"
-        if ! docker pull "$dst" >"/tmp/xben-$num-pull.log" 2>&1; then
-            log_error "拉取 $dst 失败，详见 /tmp/xben-$num-pull.log（私有包需先 docker login ghcr.io）"
+        if ! docker pull "$dst" >>"$log" 2>&1; then
+            log_error "拉取 $dst 失败，详见 $log（私有包需先 docker login ghcr.io）"
             return 1
         fi
         docker tag "$dst" "$img"
-    done < <(docker compose -f "$file" config --services 2>/dev/null)
+    done < <(docker compose -f "$file" config --format json 2>/dev/null \
+                | jq -r '.services|to_entries[]|select(.value.build!=null and (.value.image//null)==null)|.key')
+
+    # B) 用现成 image: 的服务（如 mysql:5.7、mongo:latest）：从 GHCR 的 mirror-* 拉回并打回原名
+    while IFS= read -r ref; do
+        [ -n "$ref" ] || continue
+        dst=$(mirror_ref "$ref")
+        if ! docker pull "$dst" >>"$log" 2>&1; then
+            log_error "拉取上游镜像 $dst（对应 $ref）失败，详见 $log（需 CI 已 mirror，且已 docker login）"
+            return 1
+        fi
+        docker tag "$dst" "$ref"
+    done < <(docker compose -f "$file" config --format json 2>/dev/null \
+                | jq -r '.services[]|select(.build==null and .image!=null)|.image' | sort -u)
     return 0
 }
 
@@ -190,10 +215,21 @@ generate_ports_map() {
 # 构建并启动网关容器
 start_gateway() {
     ensure_network
-    log_info "生成端口映射表 ..."
-    generate_ports_map
-    log_info "构建网关镜像 ..."
-    docker build -q -t "$GATEWAY_IMAGE" "$GATEWAY_DIR" >/dev/null
+    if [ "$PULL_MODE" -eq 1 ]; then
+        # pull 模式：网关镜像也从 GHCR 拉，不本地构建
+        local g="${REGISTRY}/${GHCR_OWNER}/${GATEWAY_PROJECT}:latest"
+        log_info "拉取网关镜像 $g ..."
+        if ! docker pull "$g" >/tmp/gateway-pull.log 2>&1; then
+            log_error "拉取网关镜像失败，详见 /tmp/gateway-pull.log（需 CI 已推送 gateway 镜像）"
+            return 1
+        fi
+        docker tag "$g" "$GATEWAY_IMAGE"
+    else
+        log_info "生成端口映射表 ..."
+        generate_ports_map
+        log_info "构建网关镜像 ..."
+        docker build -q -t "$GATEWAY_IMAGE" "$GATEWAY_DIR" >/dev/null
+    fi
     log_info "启动网关容器 ..."
     docker rm -f "$GATEWAY_PROJECT" >/dev/null 2>&1 || true
     docker run -d --name "$GATEWAY_PROJECT" \

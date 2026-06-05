@@ -79,3 +79,52 @@ jobs:
             exit 1
           fi
           echo "已推送 $pushed 个镜像"
+
+      - name: Mirror upstream image: services to GHCR
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          cd "benchmarks/${{ matrix.bench }}"
+          # 用现成 image: 的服务（mysql/mongo/wordpress…），镜像一份到 ghcr.io/owner/mirror-<name>:<tag>
+          refs=$(docker compose -f docker-compose.yml config --format json 2>/dev/null \
+            | jq -r '.services[]|select(.build==null and .image!=null)|.image' | sort -u)
+          for ref in $refs; do
+            [ -n "$ref" ] || continue
+            name="${ref%:*}"; tag="${ref##*:}"
+            [ "$name" = "$ref" ] && { name="$ref"; tag="latest"; }
+            safe=$(echo "$name" | tr '/' '-')
+            dst="ghcr.io/${owner}/mirror-${safe}:${tag}"
+            echo "mirror $ref -> $dst"
+            docker pull "$ref"
+            docker tag "$ref" "$dst"
+            docker push "$dst"
+          done
+
+  # 3) 构建并推送网关镜像（含自动生成的 ports.map）
+  gateway:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate ports.map
+        run: |
+          {
+            echo "# 自动生成：benchmark 编号 -> 容器监听端口"
+            echo 'map $bnum $bport {'
+            echo "    default 80;"
+            for d in benchmarks/XBEN-*-24; do
+              num=$(basename "$d" | sed -E 's/XBEN-([0-9]{3})-24/\1/')
+              port=$(docker compose -f "$d/docker-compose.yml" config --format json 2>/dev/null \
+                | jq -r 'first(.services[]|select((.ports//[])|length>0)|.ports[0].target)')
+              [ -n "$port" ] && [ "$port" != "null" ] && echo "    $num $port;"
+            done
+            echo "}"
+          } > gateway/ports.map
+      - name: Build & push gateway
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker build -t "ghcr.io/${owner}/benchmark-gateway:latest" gateway
+          docker push "ghcr.io/${owner}/benchmark-gateway:latest"
