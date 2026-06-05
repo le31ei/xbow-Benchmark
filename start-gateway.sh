@@ -19,7 +19,7 @@ OVERRIDE_DIR=".gateway/overrides"
 NETWORK="benchmark-net"
 GATEWAY_IMAGE="benchmark-gateway:latest"
 GATEWAY_PROJECT="benchmark-gateway"
-GATEWAY_PORT="8080"
+GATEWAY_PORT="8888"
 START_INDEX=1
 END_INDEX=104
 

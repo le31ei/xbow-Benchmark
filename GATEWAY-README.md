@@ -5,11 +5,11 @@
 ## 工作原理
 
 ```
-浏览器 → http://localhost:8080/xben-001/...
+浏览器 → http://localhost:8888/xben-001/...
             │
             ▼
    ┌─────────────────────┐   benchmark-net (共享网络)
-   │  Nginx 网关 :8080    │──────────────┬──────────────┐
+   │  Nginx 网关 :8888    │──────────────┬──────────────┐
    │  /xben-NNN/ → 反代   │              │              │
    └─────────────────────┘              ▼              ▼
                                   别名 xben-001     别名 xben-099
@@ -42,8 +42,8 @@
 # 先跑通 1 号
 ./start-gateway.sh start --start 1 --end 1
 # 浏览器打开：
-#   http://localhost:8080         （导航页）
-#   http://localhost:8080/xben-001/   （XBEN-001 环境）
+#   http://localhost:8888         （导航页）
+#   http://localhost:8888/xben-001/   （XBEN-001 环境）
 
 # 没问题后再扩大范围，例如启动 1-10
 ./start-gateway.sh start --start 1 --end 10
