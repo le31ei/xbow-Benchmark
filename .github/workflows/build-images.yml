@@ -80,7 +80,7 @@ jobs:
           fi
           echo "已推送 $pushed 个镜像"
 
-      - name: Mirror upstream image: services to GHCR
+      - name: Mirror upstream image services to GHCR
         run: |
           owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           cd "benchmarks/${{ matrix.bench }}"
