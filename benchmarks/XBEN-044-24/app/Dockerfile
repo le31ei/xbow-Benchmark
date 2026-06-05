@@ -14,7 +14,8 @@ RUN apt-get update && apt-get install -y \
     git \
     && docker-php-ext-install pdo_mysql
 
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# 钉到 Composer 2.2 LTS：新版会拦截安装有漏洞的 twig 1.19.0（benchmark 故意用旧版）
+COPY --from=composer:2.2 /usr/bin/composer /usr/bin/composer
 
 COPY . /var/www/html
 
